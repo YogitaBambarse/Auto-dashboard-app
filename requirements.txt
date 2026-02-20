@@ -1,2 +1,5 @@
-flask
+
+streamlit==1.30.0
 pandas
+plotly
+openpyxl  # in case user uploads Excel files
