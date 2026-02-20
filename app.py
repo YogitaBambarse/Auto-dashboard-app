@@ -4,7 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 # Page config
-st.set_page_config(page_title="Professional Auto Dashboard", layout="wide")
+st.set_page_config(page_title="Professional Auto Dashboard", layout="wide", initial_sidebar_state="expanded")
 
 st.title("🚀 Professional Auto Dashboard")
 st.markdown("---")
@@ -27,38 +27,43 @@ if uploaded_file:
     numeric_cols = df.select_dtypes(include=['int64','float64']).columns.tolist()
     cat_cols = df.select_dtypes(include=['object']).columns.tolist()
 
-    # Sidebar Filters for numeric
+    # Sidebar Filters
     st.sidebar.subheader("Numeric Filters")
-    filters = {}
     for col in numeric_cols:
         min_val, max_val = float(df[col].min()), float(df[col].max())
-        selected_range = st.sidebar.slider(f"{col} range", min_val, max_val, (min_val, max_val))
-        filters[col] = selected_range
-        df = df[(df[col] >= selected_range[0]) & (df[col] <= selected_range[1])]
+        df = df[(df[col] >= st.sidebar.slider(f"{col} range", min_val, max_val, (min_val, max_val)))]
 
-    # Sidebar Filters for categorical
-    if cat_cols:
-        st.sidebar.subheader("Categorical Filters")
-        for col in cat_cols:
-            options = st.sidebar.multiselect(f"Select {col}", df[col].unique(), default=list(df[col].unique()))
-            df = df[df[col].isin(options)]
+    st.sidebar.subheader("Categorical Filters")
+    for col in cat_cols:
+        options = st.sidebar.multiselect(f"{col}", df[col].unique(), default=list(df[col].unique()))
+        df = df[df[col].isin(options)]
 
+    # Top KPIs
     st.markdown("## 📊 Key Metrics")
-    # KPIs
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     if "Speed" in numeric_cols:
         col1.metric("Max Speed", df["Speed"].max())
     if "Mileage" in numeric_cols:
         col2.metric("Avg Mileage", round(df["Mileage"].mean(),2))
-    col3.metric("Total Rows", len(df))
+    col3.metric("Total Vehicles", len(df))
+    if numeric_cols:
+        col4.metric("Total Numeric Columns", len(numeric_cols))
 
-    # Tabs
+    # Tabs for sections
     tab1, tab2, tab3 = st.tabs(["Summary", "Numeric Charts", "Categorical Analysis"])
 
     # Tab 1: Summary
     with tab1:
         st.subheader("Summary Statistics")
         st.write(df.describe(include='all'))
+
+        # Optional textual insight
+        st.subheader("Insights")
+        st.write(f"Total Rows: {len(df)}")
+        if "Speed" in numeric_cols:
+            st.write(f"Maximum Speed: {df['Speed'].max()}")
+        if "Mileage" in numeric_cols:
+            st.write(f"Average Mileage: {round(df['Mileage'].mean(),2)}")
 
     # Tab 2: Numeric Charts
     with tab2:
@@ -77,7 +82,8 @@ if uploaded_file:
             x_col = st.selectbox("X-axis", numeric_cols, index=0, key="xaxis")
             y_col = st.selectbox("Y-axis", numeric_cols, index=1, key="yaxis")
             color_col = st.selectbox("Optional Color Column", df.columns, index=0, key="colorcol")
-            fig = px.scatter(df, x=x_col, y=y_col, color=color_col, hover_data=df.columns, color_continuous_scale="Viridis")
+            fig = px.scatter(df, x=x_col, y=y_col, color=color_col, hover_data=df.columns,
+                             color_continuous_scale="Viridis", template="plotly_white")
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("No numeric columns for charts.")
@@ -88,7 +94,8 @@ if uploaded_file:
             st.subheader("Categorical Columns")
             for col in cat_cols:
                 st.write(f"**{col} Distribution**")
-                fig = px.histogram(df, x=col, color=col, color_discrete_sequence=px.colors.qualitative.Pastel)
+                fig = px.histogram(df, x=col, color=col, color_discrete_sequence=px.colors.qualitative.Pastel,
+                                   template="plotly_white")
                 st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("No categorical columns for analysis.")
