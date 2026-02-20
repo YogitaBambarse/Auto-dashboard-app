@@ -3,9 +3,9 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-# Page config
-st.set_page_config(page_title="Ultimate Attractive Dashboard", layout="wide")
-st.title("🚀 Ultimate Professional & Attractive Dashboard")
+# Page setup
+st.set_page_config(page_title="Ultimate Fast Dashboard", layout="wide")
+st.title("🚀 Ultimate Professional & Fast Dashboard")
 st.markdown("---")
 
 # Sidebar: Upload & Filters
@@ -13,20 +13,24 @@ st.sidebar.header("Upload Dataset & Filters")
 uploaded_file = st.sidebar.file_uploader("Upload CSV/Excel", type=["csv","xlsx"])
 
 if uploaded_file:
-    # Read file
-    if uploaded_file.name.endswith(".csv"):
-        df = pd.read_csv(uploaded_file)
-    else:
-        df = pd.read_excel(uploaded_file)
-
+    # Cache data loading
+    @st.cache_data
+    def load_data(file):
+        if file.name.endswith(".csv"):
+            return pd.read_csv(file)
+        else:
+            return pd.read_excel(file)
+    df = load_data(uploaded_file)
     st.success("✅ Dataset Loaded!")
+    
     st.subheader("Dataset Preview")
-    st.dataframe(df.head())
+    st.dataframe(df.head(1000))  # show max 1000 rows for fast browser render
 
+    # Detect columns
     numeric_cols = df.select_dtypes(include=['int64','float64']).columns.tolist()
     cat_cols = df.select_dtypes(include=['object']).columns.tolist()
-    date_cols = df.select_dtypes(include=['datetime64', 'object']).columns.tolist()
-
+    date_cols = df.select_dtypes(include=['datetime64','object']).columns.tolist()
+    
     # Convert date columns automatically
     for col in date_cols:
         try:
@@ -34,13 +38,13 @@ if uploaded_file:
         except:
             pass
 
-    # Sidebar Filters: Numeric
+    # Sidebar Numeric Filters
     st.sidebar.subheader("Numeric Filters")
     for col in numeric_cols:
         min_val, max_val = float(df[col].min()), float(df[col].max())
         df = df[(df[col] >= st.sidebar.slider(f"{col} range", min_val, max_val, (min_val, max_val)))]
 
-    # Sidebar Filters: Categorical
+    # Sidebar Categorical Filters
     st.sidebar.subheader("Categorical Filters")
     for col in cat_cols:
         options = st.sidebar.multiselect(f"{col}", df[col].unique(), default=list(df[col].unique()))
@@ -55,10 +59,10 @@ if uploaded_file:
         cols = st.columns(4)
         if "Speed" in numeric_cols:
             max_speed = df["Speed"].max()
-            cols[0].metric("Max Speed", max_speed, delta="↑ High" if max_speed > 120 else "↓ Low")
+            cols[0].metric("Max Speed", max_speed, delta="↑ High" if max_speed>120 else "↓ Low")
         if "Mileage" in numeric_cols:
             avg_mileage = round(df["Mileage"].mean(),2)
-            cols[1].metric("Avg Mileage", avg_mileage, delta="↑ Good" if avg_mileage > 20 else "↓ Low")
+            cols[1].metric("Avg Mileage", avg_mileage, delta="↑ Good" if avg_mileage>20 else "↓ Low")
         cols[2].metric("Total Vehicles", len(df))
         cols[3].metric("Numeric Columns", len(numeric_cols))
 
@@ -79,8 +83,9 @@ if uploaded_file:
         # Tab 2: Numeric Charts
         with tab2:
             if numeric_cols:
-                st.subheader("Correlation Heatmap")
-                corr = df[numeric_cols].corr()
+                st.subheader("Correlation Heatmap (Top 10 numeric columns for performance)")
+                top_numeric = numeric_cols[:10]
+                corr = df[top_numeric].corr()
                 fig_corr = go.Figure(data=go.Heatmap(
                     z=corr.values,
                     x=corr.columns,
@@ -89,11 +94,12 @@ if uploaded_file:
                 ))
                 st.plotly_chart(fig_corr, use_container_width=True)
 
-                st.subheader("Scatter Plot")
+                st.subheader("Scatter Plot (Sampled for large datasets)")
                 x_col = st.selectbox("X-axis", numeric_cols, index=0, key="xaxis")
                 y_col = st.selectbox("Y-axis", numeric_cols, index=1, key="yaxis")
                 color_col = st.selectbox("Color Column", df.columns, index=0, key="colorcol")
-                fig = px.scatter(df, x=x_col, y=y_col, color=color_col,
+                sample_df = df.sample(n=min(len(df),2000))  # max 2000 rows for fast plotting
+                fig = px.scatter(sample_df, x=x_col, y=y_col, color=color_col,
                                  hover_data=df.columns, color_continuous_scale="Viridis",
                                  template="plotly_white")
                 st.plotly_chart(fig, use_container_width=True)
@@ -115,9 +121,9 @@ if uploaded_file:
         # Tab 4: Trends / Time-Series
         with tab4:
             st.subheader("Numeric Trends / Time-Series")
-            # Line chart trends for numeric columns
             for col in numeric_cols:
-                fig = px.line(df, y=col, title=f"{col} Trend", template="plotly_white", markers=True)
+                sample_df = df.sample(n=min(len(df),2000))  # sample for performance
+                fig = px.line(sample_df, y=col, title=f"{col} Trend", template="plotly_white", markers=True)
                 st.plotly_chart(fig, use_container_width=True)
 
             # Time-series if Date exists
@@ -135,4 +141,4 @@ if uploaded_file:
                            file_name="filtered_data.csv", mime="text/csv")
 
 else:
-    st.info("Upload a CSV or Excel file to generate the Ultimate Professional Dashboard.")
+    st.info("Upload a CSV or Excel file to generate the Fast & Professional Dashboard.")
