@@ -4,7 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 # --------------------------------------------------
-# Page Config (Must be first Streamlit command)
+# PAGE CONFIG
 # --------------------------------------------------
 st.set_page_config(page_title="Ultimate Professional Dashboard", layout="wide")
 
@@ -12,7 +12,7 @@ st.title("🚀 Ultimate Professional & Safe Dashboard")
 st.markdown("---")
 
 # --------------------------------------------------
-# Sidebar Upload
+# FILE UPLOAD
 # --------------------------------------------------
 st.sidebar.header("Upload Dataset")
 uploaded_file = st.sidebar.file_uploader("Upload CSV or Excel", type=["csv", "xlsx"])
@@ -25,37 +25,39 @@ if uploaded_file:
             df = pd.read_csv(file)
         else:
             df = pd.read_excel(file)
-
         df.columns = df.columns.str.strip()
         return df
 
     df = load_data(uploaded_file)
+
+    # Keep original safe
     original_df = df.copy()
 
     st.subheader("📄 Dataset Preview")
     st.dataframe(df.head(1000))
 
     # --------------------------------------------------
-    # Detect Column Types
+    # SMART DATE DETECTION (Safe)
     # --------------------------------------------------
+    date_cols = []
+
+    for col in df.columns:
+        if df[col].dtype == "object":
+            converted = pd.to_datetime(df[col], errors="coerce")
+            if converted.notna().sum() > 0.6 * len(df):
+                df[col] = converted
+                date_cols.append(col)
+
+    # Detect types AFTER date conversion
     numeric_cols = df.select_dtypes(include=["int64", "float64"]).columns.tolist()
     cat_cols = df.select_dtypes(include=["object", "category"]).columns.tolist()
-
-    # Try converting possible date columns
-    for col in df.columns:
-        try:
-            df[col] = pd.to_datetime(df[col])
-        except:
-            pass
-
-    date_cols = df.select_dtypes(include=["datetime64[ns]"]).columns.tolist()
 
     # --------------------------------------------------
     # FILTER SECTION
     # --------------------------------------------------
     st.sidebar.header("Filters")
 
-    filtered_df = original_df.copy()
+    filtered_df = df.copy()
 
     # ---------------- Numeric Filters ----------------
     st.sidebar.subheader("Numeric Filters")
@@ -88,7 +90,7 @@ if uploaded_file:
 
         unique_vals = filtered_df[col].unique()
 
-        if len(unique_vals) <= 100:  # Avoid crash
+        if len(unique_vals) <= 100:
             selected_vals = st.sidebar.multiselect(
                 f"{col}",
                 options=unique_vals,
@@ -104,23 +106,22 @@ if uploaded_file:
     df = filtered_df
 
     # --------------------------------------------------
-    # Empty Data Protection
+    # EMPTY DATA PROTECTION
     # --------------------------------------------------
     if df.empty:
         st.warning("⚠️ No data available after applying filters.")
         st.stop()
 
     # --------------------------------------------------
-    # KPI Section
+    # KPI SECTION
     # --------------------------------------------------
     st.markdown("## 📊 Key Metrics")
-    col1, col2, col3, col4 = st.columns(4)
+    k1, k2, k3, k4 = st.columns(4)
 
-    if numeric_cols:
-        col1.metric("Total Rows", len(df))
-        col2.metric("Numeric Columns", len(numeric_cols))
-        col3.metric("Categorical Columns", len(cat_cols))
-        col4.metric("Total Columns", len(df.columns))
+    k1.metric("Total Rows", len(df))
+    k2.metric("Numeric Columns", len(numeric_cols))
+    k3.metric("Categorical Columns", len(cat_cols))
+    k4.metric("Total Columns", len(df.columns))
 
     # --------------------------------------------------
     # TABS
@@ -136,60 +137,55 @@ if uploaded_file:
 
     # ---------------- Numeric Charts ----------------
     with tab2:
-        if numeric_cols:
+        if len(numeric_cols) >= 2:
 
-            # Correlation Heatmap
-            if len(numeric_cols) > 1:
-                st.subheader("Correlation Heatmap")
-                corr = df[numeric_cols[:10]].corr()
+            st.subheader("Correlation Heatmap")
+            corr = df[numeric_cols[:10]].corr()
 
-                fig_corr = go.Figure(
-                    data=go.Heatmap(
-                        z=corr.values,
-                        x=corr.columns,
-                        y=corr.columns,
-                        colorscale="Viridis"
-                    )
+            fig_corr = go.Figure(
+                data=go.Heatmap(
+                    z=corr.values,
+                    x=corr.columns,
+                    y=corr.columns,
+                    colorscale="Viridis"
                 )
-                st.plotly_chart(fig_corr, use_container_width=True)
+            )
+            st.plotly_chart(fig_corr, use_container_width=True)
 
-            # Scatter Plot
-            if len(numeric_cols) >= 2:
-                st.subheader("Scatter Plot")
+            st.subheader("Scatter Plot")
 
-                x_axis = st.selectbox("X-Axis", numeric_cols)
-                y_axis = st.selectbox("Y-Axis", numeric_cols, index=1)
+            x_axis = st.selectbox("X-Axis", numeric_cols)
+            y_axis = st.selectbox("Y-Axis", numeric_cols, index=1)
 
-                color_option = None
-                if cat_cols:
-                    color_option = st.selectbox("Color By", cat_cols)
+            color_option = None
+            if cat_cols:
+                color_option = st.selectbox("Color By", cat_cols)
 
-                plot_df = df.dropna(subset=[x_axis, y_axis])
+            plot_df = df.dropna(subset=[x_axis, y_axis])
 
-                if not plot_df.empty:
-                    sample_df = plot_df.sample(
-                        n=min(len(plot_df), 2000),
-                        random_state=42
-                    )
+            if not plot_df.empty:
+                sample_df = plot_df.sample(
+                    n=min(len(plot_df), 2000),
+                    random_state=42
+                )
 
-                    fig = px.scatter(
-                        sample_df,
-                        x=x_axis,
-                        y=y_axis,
-                        color=color_option,
-                        template="plotly_white"
-                    )
+                fig = px.scatter(
+                    sample_df,
+                    x=x_axis,
+                    y=y_axis,
+                    color=color_option,
+                    template="plotly_white"
+                )
 
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.info("No data available for scatter plot.")
+                st.plotly_chart(fig, use_container_width=True)
 
         else:
-            st.info("No numeric columns found.")
+            st.info("Need at least 2 numeric columns for charts.")
 
     # ---------------- Categorical Analysis ----------------
     with tab3:
         if cat_cols:
+
             st.subheader("Categorical Distribution")
 
             for col in cat_cols:
@@ -205,6 +201,7 @@ if uploaded_file:
                 )
 
                 st.plotly_chart(fig, use_container_width=True)
+
         else:
             st.info("No categorical columns found.")
 
@@ -229,10 +226,10 @@ if uploaded_file:
                     st.plotly_chart(fig, use_container_width=True)
 
         else:
-            st.info("No valid date columns for time-series.")
+            st.info("No valid date columns detected.")
 
     # --------------------------------------------------
-    # Download
+    # DOWNLOAD FILTERED DATA
     # --------------------------------------------------
     st.download_button(
         "📥 Download Filtered Data",
@@ -242,4 +239,4 @@ if uploaded_file:
     )
 
 else:
-    st.info("Please upload CSV or Excel file to start.")
+    st.info("Please upload a CSV or Excel file to start.")
